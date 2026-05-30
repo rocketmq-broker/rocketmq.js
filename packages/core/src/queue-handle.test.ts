@@ -11,7 +11,7 @@ import { QueueHandle } from './queue-handle.js';
 import { SchemaRegistry } from '@rocketmq/schema';
 import type { SchemaEntry } from '@rocketmq/schema';
 import type { Serializer } from '@rocketmq/serializer';
-import { ValidationError, PublishError, ConsumeError } from './errors.js';
+import { PublishError, ConsumeError } from './errors.js';
 
 /** Named fake per user rules. */
 class FakeAmqpChannel {
@@ -56,7 +56,7 @@ describe('QueueHandle', () => {
   });
 
   describe('send', () => {
-    it('validates, serializes, and sends a valid payload', () => {
+    it('serializes and sends a payload', () => {
       const result = handle.send({ id: '1', qty: 5 });
       expect(result).toBe(true);
       expect(serializer.serialize).toHaveBeenCalledWith({ id: '1', qty: 5 });
@@ -79,10 +79,6 @@ describe('QueueHandle', () => {
       );
     });
 
-    it('throws ValidationError for invalid payload', () => {
-      expect(() => handle.send({ id: 123, qty: 'bad' } as never)).toThrow(ValidationError);
-    });
-
     it('throws PublishError when channel.sendToQueue throws', () => {
       channel.sendToQueue.mockImplementation(() => {
         throw new Error('channel closed');
@@ -96,7 +92,9 @@ describe('QueueHandle', () => {
       const handler = vi.fn();
       const tag = await handle.consume(handler);
       expect(tag).toBe('tag-1');
-      expect(channel.consume).toHaveBeenCalledWith('test-queue', expect.any(Function), undefined);
+      expect(channel.consume).toHaveBeenCalledWith('test-queue', expect.any(Function), {
+        arguments: {},
+      });
     });
 
     it('deserializes and calls handler with typed message', async () => {
@@ -163,13 +161,14 @@ describe('QueueHandle', () => {
       await handle.consume(handler, { noAck: true });
       expect(channel.consume).toHaveBeenCalledWith('test-queue', expect.any(Function), {
         noAck: true,
+        arguments: {},
       });
     });
   });
 });
 
 describe('QueueHandle without schema', () => {
-  it('send passes validation when no schema registered', () => {
+  it('sends without errors when no schema registered', () => {
     const registry = new SchemaRegistry();
     const channel = new FakeAmqpChannel();
     const serializer = new FakeSerializer();

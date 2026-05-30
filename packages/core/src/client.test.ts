@@ -11,13 +11,7 @@ import { Field, Schema, SchemaRegistry } from '@rocketmq/schema';
 import { JsonSerializer } from '@rocketmq/serializer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { connect, RocketMQ } from './client.js';
-import {
-  ConnectionError,
-  ConsumeError,
-  PublishError,
-  QueueError,
-  ValidationError,
-} from './errors.js';
+import { ConnectionError, ConsumeError, PublishError, QueueError } from './errors.js';
 
 // Mock AmqpConnection for connect() tests
 vi.mock('@rocketmq/amqp', async (importOriginal) => {
@@ -210,15 +204,6 @@ describe('RocketMQ', () => {
       );
     });
 
-    it('throws ValidationError for invalid payload against registered schema', () => {
-      registry.register('validated-q', {
-        ctor: class {},
-        name: 'V',
-        fields: [{ name: 'required_field', protoType: 'string', number: 1 }],
-      });
-      expect(() => mq.sendToQueue('validated-q', {})).toThrow(ValidationError);
-    });
-
     it('throws PublishError when channel.sendToQueue throws', () => {
       ch.sendToQueue.mockImplementation(() => {
         throw new Error('closed');
@@ -290,42 +275,6 @@ describe('RocketMQ', () => {
     it('throws ConsumeError when channel.consume rejects', async () => {
       ch.consume.mockRejectedValue(new Error('NOT_FOUND'));
       await expect(mq.consume('q', vi.fn())).rejects.toThrow(ConsumeError);
-    });
-
-    it('validates incoming messages against registered schema', async () => {
-      registry.register('validated-q', {
-        ctor: class {},
-        name: 'Msg',
-        fields: [{ name: 'id', protoType: 'string', number: 1 }],
-      });
-
-      const handler = vi.fn();
-      ch.consume.mockImplementation(async (_q: string, cb: Function) => {
-        cb({ content: Buffer.from('{"id":"ok"}'), fields: {}, properties: {} });
-        return { consumerTag: 't' };
-      });
-      await mq.consume('validated-q', handler);
-      expect(handler).toHaveBeenCalledWith({ id: 'ok' }, expect.anything());
-    });
-
-    it('skips and logs invalid messages against registered schema', async () => {
-      registry.register('validated-q', {
-        ctor: class {},
-        name: 'Msg',
-        fields: [{ name: 'id', protoType: 'string', number: 1 }],
-      });
-
-      const handler = vi.fn();
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      ch.consume.mockImplementation(async (_q: string, cb: Function) => {
-        // id is number instead of string — schema violation
-        cb({ content: Buffer.from('{"id":123}'), fields: {}, properties: {} });
-        return { consumerTag: 't' };
-      });
-      await mq.consume('validated-q', handler);
-      expect(handler).not.toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('validation error'));
-      consoleSpy.mockRestore();
     });
   });
 

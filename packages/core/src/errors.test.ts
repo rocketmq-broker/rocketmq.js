@@ -12,7 +12,6 @@ import {
   QueueError,
   PublishError,
   ConsumeError,
-  ValidationError,
   SerializationError,
   SchemaError,
   TimeoutError,
@@ -87,18 +86,6 @@ describe('ConsumeError', () => {
     const cause = new Error('NOT_FOUND');
     const err = new ConsumeError('failed', cause);
     expect(err.cause).toBe(cause);
-  });
-});
-
-describe('ValidationError', () => {
-  it('formats message with schema and issues', () => {
-    const err = new ValidationError('Order', ['id: Required', 'qty: Expected number']);
-    expect(err.message).toBe(
-      "Validation failed for schema 'Order': id: Required, qty: Expected number",
-    );
-    expect(err.schema).toBe('Order');
-    expect(err.issues).toEqual(['id: Required', 'qty: Expected number']);
-    expect(err.name).toBe('ValidationError');
   });
 });
 

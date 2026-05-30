@@ -1,9 +1,9 @@
 /**
  * Typed queue handle — the core DX innovation.
  *
- * Wraps a queue name with its schema, serializer, and validator so
- * every send() and consume() call is type-safe at compile time and
- * validated at runtime.
+ * Wraps a queue name with its schema and serializer so every send()
+ * and consume() call is type-safe at compile time. Runtime validation
+ * is delegated to the broker's compiled proto schema.
  *
  * Usage:
  *   const orders = mq.queue("orders", Order);
@@ -14,8 +14,8 @@
 import type { AmqpChannel, ConsumeMessage, ConsumeOptions, PublishOptions } from '@rocketmq/amqp';
 import type { SchemaRegistry } from '@rocketmq/schema';
 import type { Serializer } from '@rocketmq/serializer';
-import { validatePayload } from '@rocketmq/validator';
-import { PublishError, ConsumeError, ValidationError } from './errors.js';
+import { toProto } from '@rocketmq/protobuf';
+import { PublishError, ConsumeError } from './errors.js';
 
 export class QueueHandle<T> {
   constructor(
@@ -28,12 +28,9 @@ export class QueueHandle<T> {
   /**
    * Publishes a typed payload to this queue.
    *
-   * Pipeline: validate → serialize → send.
-   * Throws ValidationError if the payload doesn't match the schema.
+   * Pipeline: serialize → send. Validation is broker-side.
    */
   send(payload: T, opts?: PublishOptions): boolean {
-    this.validateOrThrow(payload);
-
     try {
       const buf = this.serializer.serialize(payload);
       return this.channel.sendToQueue(this.queueName, buf, {
@@ -49,14 +46,16 @@ export class QueueHandle<T> {
   /**
    * Subscribes to this queue with typed message handling.
    *
-   * Pipeline: deserialize → validate → handler.
-   * Malformed messages are logged but not re-thrown to avoid
-   * crashing the consumer loop.
+   * Sends the consumer's proto definition to the broker via AMQP
+   * arguments so the broker can verify schema subset compatibility.
+   * Malformed messages are logged but not re-thrown to keep the loop alive.
    */
   async consume(
     handler: (msg: T, raw: ConsumeMessage) => void,
     opts?: ConsumeOptions,
   ): Promise<string> {
+    const consumerArgs = this.buildConsumerSchemaArgs();
+
     try {
       const reply = await this.channel.consume(
         this.queueName,
@@ -70,7 +69,13 @@ export class QueueHandle<T> {
             console.error(`[rocketmq] deserialization error on queue '${this.queueName}':`, err);
           }
         },
-        opts,
+        {
+          ...opts,
+          arguments: {
+            ...opts?.arguments,
+            ...consumerArgs,
+          },
+        },
       );
       return reply.consumerTag;
     } catch (err) {
@@ -78,11 +83,20 @@ export class QueueHandle<T> {
     }
   }
 
-  /** Validates payload against the registered schema, throws on failure. */
-  private validateOrThrow(payload: unknown): void {
-    const result = validatePayload(this.registry, this.queueName, payload);
-    if (!result.ok) {
-      throw new ValidationError(this.queueName, result.issues);
+  /** Builds AMQP arguments for consumer schema subset checking. */
+  private buildConsumerSchemaArgs(): Record<string, string> {
+    const meta = this.registry.lookup(this.queueName);
+    if (!meta) return {};
+
+    try {
+      const proto = toProto(meta.ctor);
+      return {
+        'x-consumer-schema': proto,
+        'x-consumer-schema-message': meta.name,
+      };
+    } catch {
+      // WHY: ctor may lack @Field() decorators (e.g. untyped consumers)
+      return {};
     }
   }
 }

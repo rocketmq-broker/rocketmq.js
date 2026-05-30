@@ -12,8 +12,7 @@
     "@rocketmq/amqp": "workspace:*",
     "@rocketmq/protobuf": "workspace:*",
     "@rocketmq/schema": "workspace:*",
-    "@rocketmq/serializer": "workspace:*",
-    "@rocketmq/validator": "workspace:*"
+    "@rocketmq/serializer": "workspace:*"
   },
   "scripts": {
     "build": "tsup",

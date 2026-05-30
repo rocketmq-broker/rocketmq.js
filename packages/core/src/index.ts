@@ -19,7 +19,6 @@ export {
   QueueError,
   PublishError,
   ConsumeError,
-  ValidationError,
   SerializationError,
   SchemaError,
   TimeoutError,

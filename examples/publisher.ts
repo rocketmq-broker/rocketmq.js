@@ -9,7 +9,7 @@
 
 import { connect, Field, Schema } from '@rocketmq/core';
 
-@Schema('notifications')
+@Schema()
 class Notification {
   @Field()
   id!: string;
@@ -40,6 +40,10 @@ async function main(): Promise<void> {
   // ─── Style 2: assertQueue + sendToQueue (classic) ────────────
   await mq.assertQueue('classic-notifications', Notification);
 
+  mq.channel.raw.on('error', (err: Error) => {
+    console.error('[channel error]', err.message);
+  });
+
   await mq.consume('classic-notifications', (msg, raw) => {
     console.log('[style-2] received:', msg);
     mq.ack(raw);
@@ -48,13 +52,10 @@ async function main(): Promise<void> {
   mq.sendToQueue('classic-notifications', {
     id: '2',
     content: 'Hello via sendToQueue',
-    timestamp: Date.now(),
+    timestamp: '',
   });
 
-  // Both styles validate: this would throw ValidationError
-  // mq.sendToQueue("classic-notifications", { bad: "payload" });
-
-  await new Promise((r) => setTimeout(r, 1000));
+  await new Promise((r) => setTimeout(r, 2000));
   await mq.close();
   console.log('[pub] done');
 }

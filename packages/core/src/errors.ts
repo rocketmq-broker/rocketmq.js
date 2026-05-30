@@ -6,7 +6,7 @@
  *
  * Usage:
  *   try { ... } catch (err) {
- *     if (err instanceof ValidationError) console.error(err.issues);
+ *     if (err instanceof PublishError) console.error(err.queue);
  *   }
  */
 
@@ -45,16 +45,6 @@ export class ConsumeError extends RocketMQError {
   constructor(message: string, cause?: unknown) {
     super(message, cause);
     this.name = 'ConsumeError';
-  }
-}
-
-export class ValidationError extends RocketMQError {
-  constructor(
-    public readonly schema: string,
-    public readonly issues: string[],
-  ) {
-    super(`Validation failed for schema '${schema}': ${issues.join(', ')}`);
-    this.name = 'ValidationError';
   }
 }
 

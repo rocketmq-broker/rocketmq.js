@@ -25,14 +25,7 @@ import {
 import { toProto } from '@rocketmq/protobuf';
 import { defaultRegistry, type SchemaRegistry } from '@rocketmq/schema';
 import { JsonSerializer, type Serializer } from '@rocketmq/serializer';
-import { validatePayload } from '@rocketmq/validator';
-import {
-  ConnectionError,
-  ConsumeError,
-  PublishError,
-  QueueError,
-  ValidationError,
-} from './errors.js';
+import { ConnectionError, ConsumeError, PublishError, QueueError } from './errors.js';
 import { QueueHandle } from './queue-handle.js';
 
 export interface RocketOptions {
@@ -113,10 +106,8 @@ export class RocketMQ {
       fields: [...fields],
     });
 
-    // WHY: x-schema-subject is NOT sent as a queue argument because it
-    // triggers the broker's Confluent wire-format validation path, which
-    // expects [0x00, schema_id_be32, payload...] — not plain JSON.
-    // The subject is stored client-side only for informational purposes.
+    // Schema metadata sent as queue arguments so the broker compiles
+    // a proto descriptor and validates JSON payloads on publish.
     const schemaArgs: Record<string, string> = {
       'x-schema': proto,
       'x-schema-type': 'protobuf',
@@ -154,14 +145,9 @@ export class RocketMQ {
    * Publishes a JSON message directly to a queue (untyped path).
    *
    * Prefer `mq.queue("name", Schema).send()` for type safety.
-   * This method exists for backward compatibility with the old API.
+   * Validation is handled broker-side via the queue's compiled schema.
    */
   sendToQueue(queue: string, payload: Record<string, unknown>, opts?: PublishOptions): boolean {
-    const result = validatePayload(this.registry, queue, payload);
-    if (!result.ok) {
-      throw new ValidationError(queue, result.issues);
-    }
-
     try {
       const buf = this.serializer.serialize(payload);
       return this.ch.sendToQueue(queue, buf, {
@@ -196,11 +182,12 @@ export class RocketMQ {
   }
 
   /**
-   * Subscribes to a queue with JSON parsing and schema validation.
+   * Subscribes to a queue with JSON deserialization.
    *
    * When a schema was registered via `assertQueue(name, Schema)`,
-   * incoming messages are validated after deserialization — invalid
-   * payloads are logged and skipped to keep the consumer alive.
+   * the consumer's proto definition is sent to the broker for subset
+   * checking — the broker rejects consumers expecting fields the
+   * queue's schema doesn't define.
    *
    * Usage:
    *   await mq.assertQueue("orders", Order);
@@ -211,6 +198,9 @@ export class RocketMQ {
     handler: (msg: T, raw: ConsumeMessage) => void,
     opts?: import('@rocketmq/amqp').ConsumeOptions,
   ): Promise<string> {
+    // Build consumer schema arguments for broker-side subset validation.
+    const consumerArgs = this.buildConsumerSchemaArgs(queue);
+
     try {
       const reply = await this.ch.consume(
         queue,
@@ -218,25 +208,44 @@ export class RocketMQ {
           if (!msg) return;
           try {
             const body = this.serializer.deserialize(msg.content) as T;
-
-            const result = validatePayload(this.registry, queue, body);
-            if (!result.ok) {
-              console.error(
-                `[rocketmq] validation error on queue '${queue}': ${result.issues.join(', ')}`,
-              );
-              return;
-            }
-
             handler(body, msg);
           } catch (err) {
             console.error(`[rocketmq] deserialization error on queue '${queue}':`, err);
           }
         },
-        opts,
+        {
+          ...opts,
+          arguments: {
+            ...opts?.arguments,
+            ...consumerArgs,
+          },
+        },
       );
       return reply.consumerTag;
     } catch (err) {
       throw new ConsumeError(`Failed to consume from queue '${queue}'`, err);
+    }
+  }
+
+  /**
+   * Builds AMQP arguments for consumer schema compatibility checking.
+   *
+   * Returns `x-consumer-schema` + `x-consumer-schema-message` if the
+   * queue has a registered schema, otherwise an empty object.
+   */
+  private buildConsumerSchemaArgs(queue: string): Record<string, string> {
+    const meta = this.registry.lookup(queue);
+    if (!meta) return {};
+
+    try {
+      const proto = toProto(meta.ctor);
+      return {
+        'x-consumer-schema': proto,
+        'x-consumer-schema-message': meta.name,
+      };
+    } catch {
+      // WHY: ctor may lack @Field() decorators (e.g. untyped consumers)
+      return {};
     }
   }
 
