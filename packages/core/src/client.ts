@@ -102,8 +102,9 @@ export class RocketMQ {
     }
 
     const proto = toProto(schema);
-    const fields = this.registry.getFields(schema);
-    const subject = this.registry.getSubject(schema);
+    // WHY: decorators write to defaultRegistry, not the instance registry
+    const fields = defaultRegistry.getFields(schema);
+    const subject = defaultRegistry.getSubject(schema);
 
     this.registry.register(name, {
       ctor: schema,
@@ -112,14 +113,21 @@ export class RocketMQ {
       fields: [...fields],
     });
 
+    const schemaArgs: Record<string, string> = {
+      'x-schema': proto,
+      'x-schema-type': 'protobuf',
+      'x-schema-message': schema.name,
+    };
+    if (subject) {
+      schemaArgs['x-schema-subject'] = subject;
+    }
+
     try {
       return await this.ch.assertQueue(name, {
         ...opts,
         arguments: {
           ...opts?.arguments,
-          'x-schema': proto,
-          'x-schema-type': 'protobuf',
-          'x-schema-message': schema.name,
+          ...schemaArgs,
         },
       });
     } catch (err) {

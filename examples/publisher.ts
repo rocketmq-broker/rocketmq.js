@@ -7,7 +7,7 @@
  * Run: pnpm pub:example
  */
 
-import { connect, Schema, Field } from '@rocketmq/core';
+import { connect, Field, Schema } from '@rocketmq/core';
 
 @Schema('notifications')
 class Notification {

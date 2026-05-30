@@ -141,6 +141,38 @@ describe('RocketMQ', () => {
       ch.assertQueue.mockRejectedValue(new Error('PRECONDITION_FAILED'));
       await expect(mq.assertQueue('fail-q', QErr)).rejects.toThrow(QueueError);
     });
+
+    it('includes x-schema-subject when @Schema provides a subject', async () => {
+      @Schema('notifications.v1')
+      class SubjectTest {
+        @Field()
+        id!: string;
+      }
+      new SubjectTest();
+
+      await mq.assertQueue('subject-q', SubjectTest);
+      expect(ch.assertQueue).toHaveBeenCalledWith(
+        'subject-q',
+        expect.objectContaining({
+          arguments: expect.objectContaining({
+            'x-schema-subject': 'notifications.v1',
+          }),
+        }),
+      );
+    });
+
+    it('omits x-schema-subject when @Schema has no subject', async () => {
+      @Schema()
+      class NoSubject {
+        @Field()
+        x!: string;
+      }
+      new NoSubject();
+
+      await mq.assertQueue('no-subject-q', NoSubject);
+      const callArgs = ch.assertQueue.mock.calls[0][1];
+      expect(callArgs.arguments).not.toHaveProperty('x-schema-subject');
+    });
   });
 
   describe('queue (typed handle)', () => {
