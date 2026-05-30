@@ -1,0 +1,22 @@
+{
+  "name": "@rocketmq/core",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@rocketmq/amqp": "workspace:*",
+    "@rocketmq/protobuf": "workspace:*",
+    "@rocketmq/schema": "workspace:*",
+    "@rocketmq/serializer": "workspace:*",
+    "@rocketmq/validator": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  }
+}

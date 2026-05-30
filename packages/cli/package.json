@@ -1,0 +1,22 @@
+{
+  "name": "@rocketmq/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "rocketmq": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@rocketmq/core": "workspace:*",
+    "@rocketmq/schema": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  }
+}
