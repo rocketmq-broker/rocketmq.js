@@ -44,6 +44,27 @@ async function main() {
 }
 ```
 
+### Classic API Style
+
+If you prefer the classic AMQP interface over the `QueueHandle` abstraction, you can use `assertQueue` directly while still benefiting from broker-side schema validation and client-side type inference:
+
+```typescript
+async function classicApiExample() {
+  const mq = await connect();
+
+  // Asserts the queue and registers the schema with the broker
+  await mq.assertQueue('orders', Order);
+
+  // Type-safe consumption
+  await mq.consume('orders', (order) => {
+    console.log(`Received order: ${order.id} for ${order.quantity} items`);
+  });
+
+  // Type-safe publishing
+  mq.sendToQueue('orders', { id: '123', quantity: 5 });
+}
+```
+
 ## License
 
 Apache 2.0
