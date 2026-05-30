@@ -265,6 +265,42 @@ describe('RocketMQ', () => {
       ch.consume.mockRejectedValue(new Error('NOT_FOUND'));
       await expect(mq.consume('q', vi.fn())).rejects.toThrow(ConsumeError);
     });
+
+    it('validates incoming messages against registered schema', async () => {
+      registry.register('validated-q', {
+        ctor: class {},
+        name: 'Msg',
+        fields: [{ name: 'id', protoType: 'string', number: 1 }],
+      });
+
+      const handler = vi.fn();
+      ch.consume.mockImplementation(async (_q: string, cb: Function) => {
+        cb({ content: Buffer.from('{"id":"ok"}'), fields: {}, properties: {} });
+        return { consumerTag: 't' };
+      });
+      await mq.consume('validated-q', handler);
+      expect(handler).toHaveBeenCalledWith({ id: 'ok' }, expect.anything());
+    });
+
+    it('skips and logs invalid messages against registered schema', async () => {
+      registry.register('validated-q', {
+        ctor: class {},
+        name: 'Msg',
+        fields: [{ name: 'id', protoType: 'string', number: 1 }],
+      });
+
+      const handler = vi.fn();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      ch.consume.mockImplementation(async (_q: string, cb: Function) => {
+        // id is number instead of string — schema violation
+        cb({ content: Buffer.from('{"id":123}'), fields: {}, properties: {} });
+        return { consumerTag: 't' };
+      });
+      await mq.consume('validated-q', handler);
+      expect(handler).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('validation error'));
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('ack / nack', () => {

@@ -1,16 +1,13 @@
 /**
- * Example publisher using the new typed queue API.
+ * Example: both API styles — QueueHandle vs assertQueue + sendToQueue.
  *
- * Demonstrates:
- *   1. Schema definition with decorators
- *   2. Typed queue handle creation
- *   3. Client-side validation before publish
- *   4. Broker error handling
+ * Demonstrates that passing a schema to assertQueue gives you the
+ * same validation behavior as using mq.queue().
  *
- * Run: pnpm pub:example (from client-ts root)
+ * Run: pnpm pub:example
  */
 
-import { connect, Field, PublishError, Schema } from '@rocketmq/core';
+import { connect, Schema, Field } from '@rocketmq/core';
 
 @Schema('notifications')
 class Notification {
@@ -27,27 +24,37 @@ class Notification {
 async function main(): Promise<void> {
   const mq = await connect();
 
-  // Typed queue handle — send() infers Notification shape
-  const notifications = await mq.queue('pending-notifications', Notification);
+  // ─── Style 1: QueueHandle (typed, recommended) ───────────────
+  const notifications = await mq.queue('typed-notifications', Notification);
 
-  let brokerError: Error | null = null;
-  mq.channel.raw.on('error', (err: Error) => {
-    brokerError = err;
+  await notifications.consume((msg) => {
+    console.log('[style-1] received:', msg);
   });
 
   notifications.send({
     id: '1',
-    content: 'Hello from notification',
+    content: 'Hello via QueueHandle',
     timestamp: Date.now(),
   });
 
-  // Wait for any async channel error from the broker
-  await new Promise((r) => setTimeout(r, 500));
+  // ─── Style 2: assertQueue + sendToQueue (classic) ────────────
+  await mq.assertQueue('classic-notifications', Notification);
 
-  if (brokerError) {
-    throw new PublishError('pending-notifications', brokerError);
-  }
+  await mq.consume('classic-notifications', (msg, raw) => {
+    console.log('[style-2] received:', msg);
+    mq.ack(raw);
+  });
 
+  mq.sendToQueue('classic-notifications', {
+    id: '2',
+    content: 'Hello via sendToQueue',
+    timestamp: Date.now(),
+  });
+
+  // Both styles validate: this would throw ValidationError
+  // mq.sendToQueue("classic-notifications", { bad: "payload" });
+
+  await new Promise((r) => setTimeout(r, 1000));
   await mq.close();
   console.log('[pub] done');
 }

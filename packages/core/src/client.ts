@@ -186,7 +186,17 @@ export class RocketMQ {
     }
   }
 
-  /** Subscribes to a queue with typed JSON parsing (untyped path). */
+  /**
+   * Subscribes to a queue with JSON parsing and schema validation.
+   *
+   * When a schema was registered via `assertQueue(name, Schema)`,
+   * incoming messages are validated after deserialization — invalid
+   * payloads are logged and skipped to keep the consumer alive.
+   *
+   * Usage:
+   *   await mq.assertQueue("orders", Order);
+   *   await mq.consume("orders", (msg) => console.log(msg));
+   */
   async consume<T = Record<string, unknown>>(
     queue: string,
     handler: (msg: T, raw: ConsumeMessage) => void,
@@ -199,6 +209,15 @@ export class RocketMQ {
           if (!msg) return;
           try {
             const body = this.serializer.deserialize(msg.content) as T;
+
+            const result = validatePayload(this.registry, queue, body);
+            if (!result.ok) {
+              console.error(
+                `[rocketmq] validation error on queue '${queue}': ${result.issues.join(', ')}`,
+              );
+              return;
+            }
+
             handler(body, msg);
           } catch (err) {
             console.error(`[rocketmq] deserialization error on queue '${queue}':`, err);
