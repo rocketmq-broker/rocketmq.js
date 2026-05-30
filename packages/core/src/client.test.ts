@@ -142,7 +142,7 @@ describe('RocketMQ', () => {
       await expect(mq.assertQueue('fail-q', QErr)).rejects.toThrow(QueueError);
     });
 
-    it('includes x-schema-subject when @Schema provides a subject', async () => {
+    it('never sends x-schema-subject as queue arg (triggers Confluent wire validation)', async () => {
       @Schema('notifications.v1')
       class SubjectTest {
         @Field()
@@ -151,27 +151,21 @@ describe('RocketMQ', () => {
       new SubjectTest();
 
       await mq.assertQueue('subject-q', SubjectTest);
-      expect(ch.assertQueue).toHaveBeenCalledWith(
-        'subject-q',
-        expect.objectContaining({
-          arguments: expect.objectContaining({
-            'x-schema-subject': 'notifications.v1',
-          }),
-        }),
-      );
+      const callArgs = ch.assertQueue.mock.calls[0][1];
+      expect(callArgs.arguments).not.toHaveProperty('x-schema-subject');
     });
 
-    it('omits x-schema-subject when @Schema has no subject', async () => {
-      @Schema()
-      class NoSubject {
+    it('stores subject in client registry even though it is not sent to broker', async () => {
+      @Schema('orders.v2')
+      class RegistrySubject {
         @Field()
         x!: string;
       }
-      new NoSubject();
+      new RegistrySubject();
 
-      await mq.assertQueue('no-subject-q', NoSubject);
-      const callArgs = ch.assertQueue.mock.calls[0][1];
-      expect(callArgs.arguments).not.toHaveProperty('x-schema-subject');
+      await mq.assertQueue('reg-q', RegistrySubject);
+      const entry = registry.lookup('reg-q');
+      expect(entry?.subject).toBe('orders.v2');
     });
   });
 

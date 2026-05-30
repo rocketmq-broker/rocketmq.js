@@ -25,17 +25,17 @@ async function main(): Promise<void> {
   const mq = await connect();
 
   // ─── Style 1: QueueHandle (typed, recommended) ───────────────
-  const notifications = await mq.queue('typed-notifications', Notification);
+  // const notifications = await mq.queue('typed-notifications', Notification);
 
-  await notifications.consume((msg) => {
-    console.log('[style-1] received:', msg);
-  });
+  // await notifications.consume((msg) => {
+  //   console.log('[style-1] received:', msg);
+  // });
 
-  notifications.send({
-    id: '1',
-    content: 'Hello via QueueHandle',
-    timestamp: Date.now(),
-  });
+  // notifications.send({
+  //   id: '1',
+  //   content: 'Hello via QueueHandle',
+  //   timestamp: Date.now(),
+  // });
 
   // ─── Style 2: assertQueue + sendToQueue (classic) ────────────
   await mq.assertQueue('classic-notifications', Notification);

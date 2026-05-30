@@ -14,26 +14,26 @@
 import {
   AmqpConnection,
   type AmqpChannel,
-  type ConsumeMessage,
-  type AssertQueueOptions,
-  type AssertQueueReply,
   type AssertExchangeOptions,
   type AssertExchangeReply,
-  type PublishOptions,
+  type AssertQueueOptions,
+  type AssertQueueReply,
+  type ConsumeMessage,
   type EmptyReply,
+  type PublishOptions,
 } from '@rocketmq/amqp';
-import { defaultRegistry, type SchemaRegistry } from '@rocketmq/schema';
 import { toProto } from '@rocketmq/protobuf';
+import { defaultRegistry, type SchemaRegistry } from '@rocketmq/schema';
 import { JsonSerializer, type Serializer } from '@rocketmq/serializer';
 import { validatePayload } from '@rocketmq/validator';
-import { QueueHandle } from './queue-handle.js';
 import {
   ConnectionError,
-  QueueError,
-  PublishError,
   ConsumeError,
+  PublishError,
+  QueueError,
   ValidationError,
 } from './errors.js';
+import { QueueHandle } from './queue-handle.js';
 
 export interface RocketOptions {
   /** AMQP connection URL. Default: amqp://guest:guest@localhost:5672 */
@@ -113,14 +113,15 @@ export class RocketMQ {
       fields: [...fields],
     });
 
+    // WHY: x-schema-subject is NOT sent as a queue argument because it
+    // triggers the broker's Confluent wire-format validation path, which
+    // expects [0x00, schema_id_be32, payload...] — not plain JSON.
+    // The subject is stored client-side only for informational purposes.
     const schemaArgs: Record<string, string> = {
       'x-schema': proto,
       'x-schema-type': 'protobuf',
       'x-schema-message': schema.name,
     };
-    if (subject) {
-      schemaArgs['x-schema-subject'] = subject;
-    }
 
     try {
       return await this.ch.assertQueue(name, {
