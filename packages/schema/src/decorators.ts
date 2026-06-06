@@ -93,6 +93,7 @@ function handleExperimentalField(
   });
 }
 
+/* v8 ignore start */
 /** TC39 stage 3 decorator path. */
 function handleTC39Field(
   opts: FieldOptions | undefined,

@@ -14,6 +14,7 @@ function ensureFieldsRegistered(schema: Constructor): void {
     new schema();
   } catch {
     // Constructor may throw — fields are registered via addInitializer
+    void 0;
   }
 }
 

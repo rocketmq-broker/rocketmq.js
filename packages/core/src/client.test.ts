@@ -71,6 +71,11 @@ describe('RocketMQ', () => {
     expect(mq.channel).toBe(ch);
   });
 
+  it('handles raw channel errors', () => {
+    ch.raw.on.mock.calls[0][1](new Error('broker failure'));
+    expect((mq as any).lastChannelError).toBeInstanceOf(Error);
+  });
+
   describe('assertQueue', () => {
     it('asserts queue without schema', async () => {
       await mq.assertQueue('plain-q');
@@ -127,6 +132,24 @@ describe('RocketMQ', () => {
           }),
         }),
       );
+    });
+
+    it('supports schemaOverride and schemaDelete options', async () => {
+      @Schema()
+      class OverOpt {
+        @Field()
+        id!: string;
+      }
+      new OverOpt();
+
+      await mq.assertQueue('opt-q', OverOpt, {
+        schemaOverride: true,
+        schemaDelete: true,
+      });
+
+      const args = ch.assertQueue.mock.calls[0][1].arguments;
+      expect(args['x-schema-override']).toBe(true);
+      expect(args['x-schema-delete']).toBe(true);
     });
 
     it('throws QueueError when channel rejects', async () => {
@@ -245,8 +268,17 @@ describe('RocketMQ', () => {
 
     it('subscribes and returns consumer tag', async () => {
       const handler = vi.fn();
-      const tag = await mq.consume('q', StubMsg, handler);
+      const tag = await mq.consume('q', StubMsg, handler, {
+        arguments: { 'x-priority': 10 },
+      });
       expect(tag).toBe('tag-1');
+      expect(ch.consume).toHaveBeenCalledWith(
+        'q',
+        expect.any(Function),
+        expect.objectContaining({
+          arguments: expect.objectContaining({ 'x-priority': 10 }),
+        }),
+      );
     });
 
     it('deserializes and calls handler', async () => {
@@ -285,6 +317,61 @@ describe('RocketMQ', () => {
     it('throws ConsumeError when channel.consume rejects', async () => {
       ch.consume.mockRejectedValue(new Error('NOT_FOUND'));
       await expect(mq.consume('q', StubMsg, vi.fn())).rejects.toThrow(ConsumeError);
+    });
+
+    it('returns empty args when queue not in registry and no schema provided', async () => {
+      const handler = vi.fn();
+      await mq.consume('unregistered-fallback', undefined as never, handler);
+      
+      const callArgs = ch.consume.mock.calls[0][2];
+      expect(callArgs.arguments['x-consumer-schema-message']).toBeUndefined();
+    });
+
+    it('falls back to registry when schema is undefined', async () => {
+      // Create a queue with no schema but with a registry entry
+      @Schema()
+      class FallbackMsg {
+        @Field() id!: string;
+      }
+      new FallbackMsg();
+      mq.assertQueue('fallback-q', FallbackMsg);
+
+      // Force consume to use the fallback by casting undefined
+      const handler = vi.fn();
+      await mq.consume('fallback-q', undefined as never, handler);
+      
+      const callArgs = ch.consume.mock.calls[0][2];
+      expect(callArgs.arguments['x-consumer-schema-message']).toBe('FallbackMsg');
+    });
+
+    it('returns empty args when fallback registry fails to resolve proto', async () => {
+      // A class without fields fails proto resolution
+      class EmptyFallbackMsg {}
+      registry.register('empty-q', { ctor: EmptyFallbackMsg, name: 'Empty', fields: [] });
+
+      const handler = vi.fn();
+      await mq.consume('empty-q', undefined as never, handler);
+
+      const callArgs = ch.consume.mock.calls[0][2];
+      expect(callArgs.arguments['x-consumer-schema-message']).toBeUndefined();
+    });
+
+    it('returns empty args when resolveConsumerArgs fails', async () => {
+      // Explicit schema without fields fails proto resolution
+      class EmptyMsg {}
+      const handler = vi.fn();
+      
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await mq.consume('err-q', EmptyMsg as never, handler);
+      
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to build consumer schema for EmptyMsg:'),
+        expect.any(String)
+      );
+      consoleSpy.mockRestore();
+
+      const callArgs = ch.consume.mock.calls[0][2];
+      expect(callArgs.arguments['x-consumer-schema-message']).toBeUndefined();
     });
   });
 
@@ -437,6 +524,15 @@ describe('RocketMQ (Zod schemas)', () => {
       const callArgs = ch.assertQueue.mock.calls[0][1];
       expect(callArgs.arguments['x-schema-message']).toBe('MyEvents');
       expect(callArgs.arguments['x-schema']).toContain('message MyEvents {');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('logs error if consumer schema fails to resolve and has no name', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await mq.consume('q2', {} as any, vi.fn());
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
     });
   });
 

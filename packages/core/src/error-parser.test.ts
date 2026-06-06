@@ -3,7 +3,10 @@ import {
   parseBrokerError,
   extractReplyText,
   formatBrokerError,
+  formatBrokerError,
   protoToTsType,
+  wrapBrokerError,
+  rethrowBrokerOr,
 } from './error-parser.js';
 import { BrokerErrorCode } from './error-codes.js';
 import { SchemaValidationError } from './errors.js';
@@ -91,6 +94,13 @@ describe('parseBrokerError', () => {
     const result = parseBrokerError(json);
     expect(result!.truncated).toBe(true);
   });
+
+  it('returns null if parsed JSON is not an object', () => {
+    expect(parseBrokerError('true')).toBeNull();
+    expect(parseBrokerError('null')).toBeNull();
+    expect(parseBrokerError('"string"')).toBeNull();
+    expect(parseBrokerError('[]')).toBeNull();
+  });
 });
 
 describe('extractReplyText', () => {
@@ -175,5 +185,37 @@ describe('SchemaValidationError', () => {
     const cause = new Error('original');
     const err = new SchemaValidationError('code', 'q', [], 'msg', cause);
     expect(err.cause).toBe(cause);
+  });
+});
+
+describe('wrapBrokerError', () => {
+  it('returns null if error is missing reply text', () => {
+    expect(wrapBrokerError(new Error('no reply text here'))).toBeNull();
+  });
+
+  it('returns null if reply text is invalid JSON', () => {
+    const err = new Error('with message "not json"');
+    expect(wrapBrokerError(err)).toBeNull();
+  });
+
+  it('returns a SchemaValidationError on valid broker error', () => {
+    const err = new Error('with message "{"code":"SchemaTypeMismatch","queue":"q","fields":[{"name":"id","expected":"double","got":"string"}]}"');
+    const result = wrapBrokerError(err);
+    expect(result).toBeInstanceOf(SchemaValidationError);
+    expect(result!.code).toBe(BrokerErrorCode.SchemaTypeMismatch);
+    expect(result!.queue).toBe('q');
+    expect(result!.fields[0].expected).toBe('number');
+  });
+});
+
+describe('rethrowBrokerOr', () => {
+  it('throws SchemaValidationError if present', () => {
+    const err = new Error('with message "{"code":"SchemaTypeMismatch","queue":"q"}"');
+    expect(() => rethrowBrokerOr(err, new Error('fallback'))).toThrow(SchemaValidationError);
+  });
+
+  it('throws fallback error otherwise', () => {
+    const err = new Error('plain error');
+    expect(() => rethrowBrokerOr(err, new Error('fallback'))).toThrow('fallback');
   });
 });

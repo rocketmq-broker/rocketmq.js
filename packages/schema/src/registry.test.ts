@@ -43,6 +43,22 @@ describe('SchemaRegistry', () => {
     });
   });
 
+  describe('schema constructors', () => {
+    it('tracks decorated schemas via isSchema', () => {
+      class A {}
+      registry.registerSchema(A);
+      expect(registry.isSchema(A)).toBe(true);
+      expect(registry.isSchema(class B {})).toBe(false);
+    });
+
+    it('looks up schema constructor by name', () => {
+      class FooSchema {}
+      registry.registerSchema(FooSchema);
+      expect(registry.getSchemaByName('FooSchema')).toBe(FooSchema);
+      expect(registry.getSchemaByName('BarSchema')).toBeUndefined();
+    });
+  });
+
   describe('listAll', () => {
     it('returns empty array when nothing registered', () => {
       expect(registry.listAll()).toEqual([]);

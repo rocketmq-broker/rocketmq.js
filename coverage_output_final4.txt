@@ -1,0 +1,106 @@
+
+> rocketmq.js@0.1.1 test:coverage /home/edilson/learnspace/rocketmq-broker/rocketmq.js
+> vitest run --coverage
+
+
+ RUN  v3.2.4 /home/edilson/learnspace/rocketmq-broker/rocketmq.js
+      Coverage enabled with v8
+
+ ✓ packages/core/src/queue-handle.test.ts (4 tests) 11ms
+ ✓ packages/schema/src/registry.test.ts (13 tests) 20ms
+ ✓ packages/amqp/src/channel.test.ts (12 tests) 23ms
+ ✓ packages/zod/src/types.test.ts (14 tests) 10ms
+ ✓ packages/zod/src/zod-to-fields.test.ts (20 tests) 21ms
+ ✓ packages/protobuf/src/generator.test.ts (11 tests) 16ms
+ ✓ packages/core/src/error-parser.test.ts (26 tests) 12ms
+ ✓ packages/schema/src/decorators.test.ts (9 tests) 7ms
+ ✓ packages/zod/src/zod-to-proto.test.ts (6 tests) 13ms
+ ✓ packages/core/src/schema-resolver.test.ts (12 tests) 16ms
+stderr | packages/core/src/client.test.ts > RocketMQ > consume (typed) > subscribes and returns consumer tag
+[rocketmq] failed to build consumer schema for StubMsg: Schema 'StubMsg' has no @Field() decorators — cannot generate proto
+
+stderr | packages/core/src/client.test.ts > RocketMQ > consume (typed) > deserializes and calls handler
+[rocketmq] failed to build consumer schema for StubMsg: Schema 'StubMsg' has no @Field() decorators — cannot generate proto
+
+stderr | packages/core/src/client.test.ts > RocketMQ > consume (typed) > ignores null messages
+[rocketmq] failed to build consumer schema for StubMsg: Schema 'StubMsg' has no @Field() decorators — cannot generate proto
+
+stderr | packages/core/src/client.test.ts > RocketMQ > consume (typed) > throws ConsumeError when channel.consume rejects
+[rocketmq] failed to build consumer schema for StubMsg: Schema 'StubMsg' has no @Field() decorators — cannot generate proto
+
+ ❯ packages/core/src/client.test.ts (41 tests | 1 failed) 115ms
+   ✓ RocketMQ > exposes channel via .channel 5ms
+   ✓ RocketMQ > handles raw channel errors 1ms
+   ✓ RocketMQ > assertQueue > asserts queue without schema 3ms
+   ✓ RocketMQ > assertQueue > asserts queue with schema and registers entry 6ms
+   ✓ RocketMQ > assertQueue > merges user-provided queue options with schema args 4ms
+   × RocketMQ > assertQueue > supports schemaOverride and schemaDelete options 22ms
+     → Schema 'OverOpt' has no @Field() decorators — cannot generate proto
+   ✓ RocketMQ > assertQueue > throws QueueError when channel rejects 6ms
+   ✓ RocketMQ > assertQueue > never sends x-schema-subject as queue arg (triggers Confluent wire validation) 3ms
+   ✓ RocketMQ > assertQueue > stores subject in client registry even though it is not sent to broker 2ms
+   ✓ RocketMQ > queue (typed handle) > returns a QueueHandle after asserting 2ms
+   ✓ RocketMQ > assertExchange > delegates to channel 3ms
+   ✓ RocketMQ > bindQueue > delegates to channel 2ms
+   ✓ RocketMQ > sendToQueue (untyped) > serializes and sends valid payload 2ms
+   ✓ RocketMQ > sendToQueue (untyped) > throws PublishError when channel.sendToQueue throws 1ms
+   ✓ RocketMQ > publish > serializes and publishes to exchange 1ms
+   ✓ RocketMQ > publish > throws PublishError when channel.publish throws 2ms
+   ✓ RocketMQ > consume (typed) > subscribes and returns consumer tag 5ms
+   ✓ RocketMQ > consume (typed) > deserializes and calls handler 3ms
+   ✓ RocketMQ > consume (typed) > ignores null messages 2ms
+   ✓ RocketMQ > consume (typed) > logs deserialization errors without crashing 2ms
+   ✓ RocketMQ > consume (typed) > throws ConsumeError when channel.consume rejects 2ms
+   ✓ RocketMQ > consume (typed) > returns empty args when queue not in registry and no schema provided 1ms
+   ✓ RocketMQ > consume (typed) > falls back to registry when schema is undefined 1ms
+   ✓ RocketMQ > consume (typed) > returns empty args when fallback registry fails to resolve proto 1ms
+   ✓ RocketMQ > consume (typed) > returns empty args when resolveConsumerArgs fails 1ms
+   ✓ RocketMQ > ack / nack > delegates ack to channel 1ms
+   ✓ RocketMQ > ack / nack > delegates nack to channel 1ms
+   ✓ RocketMQ > prefetch > delegates to channel 1ms
+   ✓ RocketMQ > close > closes channel and connection 1ms
+   ✓ RocketMQ (Zod schemas) > assertQueue with ZodSchemaInput > sends proto3 from Zod schema to broker 3ms
+   ✓ RocketMQ (Zod schemas) > assertQueue with ZodSchemaInput > generates correct proto field types from Zod 2ms
+   ✓ RocketMQ (Zod schemas) > assertQueue with ZodSchemaInput > does not register in decorator registry for Zod schemas 1ms
+   ✓ RocketMQ (Zod schemas) > assertQueue with ZodSchemaInput > throws QueueError when channel rejects Zod schema 6ms
+   ✓ RocketMQ (Zod schemas) > consume with ZodSchemaInput > sends consumer schema args from Zod 1ms
+   ✓ RocketMQ (Zod schemas) > consume with ZodSchemaInput > subscribes and returns consumer tag with Zod schema 1ms
+   ✓ RocketMQ (Zod schemas) > assertQueue with raw ZodObject > derives message name from queue name 1ms
+   ✓ RocketMQ (Zod schemas) > edge cases > logs error if consumer schema fails to resolve and has no name 1ms
+   ✓ RocketMQ (Zod schemas) > consume with raw ZodObject > derives consumer message name from queue name 1ms
+   ✓ connect() > returns a RocketMQ instance on success 1ms
+   ✓ connect() > accepts a custom serializer 0ms
+   ✓ connect() > throws ConnectionError when connection fails 1ms
+ ✓ packages/core/src/errors.test.ts (16 tests) 10ms
+ ✓ packages/protobuf/src/fields-to-proto.test.ts (7 tests) 9ms
+ ✓ packages/amqp/src/connection.test.ts (3 tests) 9ms
+ ✓ packages/schema/src/inference.test.ts (5 tests) 7ms
+ ✓ packages/serializer/src/types.test.ts (1 test) 4ms
+ ✓ packages/serializer/src/json.test.ts (7 tests) 17ms
+ ✓ packages/schema/src/metadata.test.ts (4 tests) 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  packages/core/src/client.test.ts > RocketMQ > assertQueue > supports schemaOverride and schemaDelete options
+Error: Schema 'OverOpt' has no @Field() decorators — cannot generate proto
+ ❯ toProto packages/protobuf/src/generator.js:68:15
+ ❯ resolveProto packages/core/src/schema-resolver.ts:86:12
+     84|   const ctor = input as Constructor;
+     85|   return {
+     86|     proto: toProto(ctor),
+       |            ^
+     87|     messageName: ctor.name,
+     88|   };
+ ❯ RocketMQ.buildSchemaQueueArgs packages/core/src/client.ts:177:22
+ ❯ RocketMQ.assertQueue packages/core/src/client.ts:159:29
+ ❯ packages/core/src/client.test.ts:142:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 17 passed (18)
+      Tests  1 failed | 210 passed (211)
+   Start at  13:30:32
+   Duration  1.38s (transform 1.27s, setup 0ms, collect 2.61s, tests 326ms, environment 6ms, prepare 2.63s)
+
+ ELIFECYCLE  Command failed with exit code 1.

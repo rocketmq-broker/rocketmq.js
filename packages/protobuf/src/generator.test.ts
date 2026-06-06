@@ -140,4 +140,54 @@ describe('toProto', () => {
     expect(proto).toContain('message Parent {');
     expect(proto.indexOf('message Child {')).toBeLessThan(proto.indexOf('message Parent {'));
   });
+
+  describe('edge cases', () => {
+    it('handles constructors that throw', () => {
+      @Schema()
+      class ThrowingClass {
+        @Field()
+        id!: string;
+        constructor() {
+          throw new Error('fail');
+        }
+      }
+      const proto = toProto(ThrowingClass);
+      expect(proto).toContain('message ThrowingClass');
+    });
+
+    it('throws if dependent schema has no fields', () => {
+      @Schema()
+      class NoFieldsDep {}
+      
+      @Schema()
+      class DependentParent {
+        @Field({ type: 'NoFieldsDep' })
+        child!: NoFieldsDep;
+      }
+      // manually register to ensure lookup works
+      defaultRegistry.registerSchema(NoFieldsDep);
+
+      expect(() => toProto(DependentParent)).toThrow(/no @Field/);
+    });
+
+    it('collects nested schemas via reflect metadata type', () => {
+      @Schema()
+      class NestedReflectChild {
+        @Field()
+        id!: string;
+      }
+      
+      @Schema()
+      class ReflectParent {
+        @Field({ type: 'NestedReflectChild' })
+        child!: NestedReflectChild;
+      }
+      // Force reflectedType manually since we don't emit it fully in vitest by default
+      defaultRegistry.getOrCreateFields(ReflectParent)[0].reflectedType = NestedReflectChild;
+
+      const proto = toProto(ReflectParent);
+      expect(proto).toContain('message NestedReflectChild');
+      expect(proto).toContain('message ReflectParent');
+    });
+  });
 });

@@ -7,8 +7,21 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Schema, Field } from './decorators.js';
+import { Schema, Field, isSchemaClass } from './decorators.js';
 import { defaultRegistry } from './registry.js';
+
+  describe('isSchemaClass', () => {
+    it('detects valid and invalid schemas', () => {
+      @Schema()
+      class A {}
+      expect(isSchemaClass(A)).toBe(true);
+
+      class B {}
+      expect(isSchemaClass(B)).toBe(false);
+      expect(isSchemaClass(null)).toBe(false);
+      expect(isSchemaClass(123)).toBe(false);
+    });
+  });
 
 describe('@Schema() decorator', () => {
   it('registers field list for a decorated class', () => {
