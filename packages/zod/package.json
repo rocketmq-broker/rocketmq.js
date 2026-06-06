@@ -1,0 +1,25 @@
+{
+  "name": "@rocketmq/zod",
+  "version": "0.1.1",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@rocketmq/protobuf": "workspace:*",
+    "@rocketmq/schema": "workspace:*"
+  },
+  "peerDependencies": {
+    "zod": "^3.23.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "zod": "^3.25.76"
+  }
+}

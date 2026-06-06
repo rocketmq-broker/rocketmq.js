@@ -1,6 +1,6 @@
 {
   "name": "@rocketmq/schema",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "exports": {
     ".": {
@@ -11,5 +11,8 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "reflect-metadata": "^0.2.2"
   }
 }

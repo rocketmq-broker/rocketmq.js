@@ -1,45 +1,54 @@
 /**
  * Tests for toProto() — proto3 string generation.
- *
- * Covers: valid schemas, empty schemas (error), multi-field ordering,
- * and the force-instantiation path for uninitialized classes.
  */
 
-import { describe, it, expect } from 'vitest';
-import { toProto } from './generator.js';
+import { describe, expect, it } from 'vitest';
 import { Schema, Field, defaultRegistry } from '@rocketmq/schema';
+import { toProto } from './generator.js';
 
 describe('toProto', () => {
   it('generates proto3 string for a single-field class', () => {
     @Schema()
     class SingleField {
       @Field()
-      id!: string;
+      id = '';
     }
     new SingleField();
 
-    const proto = toProto(SingleField);
-    expect(proto).toBe('syntax = "proto3"; message SingleField { string id = 1; }');
+    const expected = [
+      'syntax = "proto3";',
+      '',
+      'message SingleField {',
+      '  string id = 1;',
+      '}',
+    ].join('\n');
+    expect(toProto(SingleField)).toBe(expected);
   });
 
   it('generates proto3 with multiple fields in order', () => {
     @Schema()
     class MultiField {
       @Field()
-      name!: string;
+      name = '';
 
       @Field({ type: 'int32' })
-      age!: number;
+      age = 0;
 
       @Field({ type: 'bool' })
-      active!: boolean;
+      active = false;
     }
     new MultiField();
 
-    const proto = toProto(MultiField);
-    expect(proto).toBe(
-      'syntax = "proto3"; message MultiField { string name = 1; int32 age = 2; bool active = 3; }',
-    );
+    const expected = [
+      'syntax = "proto3";',
+      '',
+      'message MultiField {',
+      '  string name = 1;',
+      '  int32 age = 2;',
+      '  bool active = 3;',
+      '}',
+    ].join('\n');
+    expect(toProto(MultiField)).toBe(expected);
   });
 
   it('throws for class with no @Field() decorators', () => {
@@ -52,40 +61,83 @@ describe('toProto', () => {
   });
 
   it('forces instantiation when fields are not yet registered', () => {
-    // Simulate a class that hasn't been instantiated yet
     @Schema()
     class LazyInit {
       @Field()
-      value!: string;
+      value = '';
     }
-    // Do NOT call `new LazyInit()` — toProto should do it internally
-    const proto = toProto(LazyInit);
-    expect(proto).toContain('string value = 1');
+    expect(toProto(LazyInit)).toContain('string value = 1;');
   });
 
   it('handles class whose constructor throws', () => {
-    // WHY: toProto wraps instantiation in try/catch for classes
-    // that require constructor arguments
     class ThrowingCtor {
       @Field()
-      x!: string;
+      x = '';
 
       constructor() {
-        // Fields registered via addInitializer before the throw
         throw new Error('required args');
       }
     }
-    // Force-register the field store entry
     defaultRegistry.getOrCreateFields(ThrowingCtor);
 
-    // toProto will try `new ThrowingCtor()`, catch, and check fields
-    // Since addInitializer runs before constructor body, field might be registered
-    // If not, it should throw "no @Field() decorators"
     try {
-      const proto = toProto(ThrowingCtor);
-      expect(proto).toContain('string x = 1');
+      expect(toProto(ThrowingCtor)).toContain('string x = 1;');
     } catch (err) {
       expect((err as Error).message).toContain('no @Field() decorators');
     }
+  });
+
+  it('generates optional, repeated, and commented fields', () => {
+    @Schema()
+    class CustomField {
+      @Field({ type: 'string', repeated: true })
+      tags: string[] = [];
+
+      @Field({ type: 'string', optional: true })
+      nickname?: string;
+
+      @Field({ type: 'double', comment: 'User age in years' })
+      age!: number;
+    }
+    new CustomField();
+
+    const proto = toProto(CustomField);
+    expect(proto).toContain('repeated string tags = 1;');
+    expect(proto).toContain('optional string nickname = 2;');
+    expect(proto).toContain('// User age in years');
+    expect(proto).toContain('double age = 3;');
+  });
+
+  it('handles Date as Timestamp with imports', () => {
+    @Schema()
+    class TimeField {
+      @Field({ type: 'google.protobuf.Timestamp' })
+      createdAt = new Date();
+    }
+    new TimeField();
+
+    const proto = toProto(TimeField);
+    expect(proto).toContain('import "google/protobuf/timestamp.proto";');
+    expect(proto).toContain('google.protobuf.Timestamp createdAt = 1;');
+  });
+
+  it('handles nested schemas and orders them correctly', () => {
+    @Schema()
+    class Child {
+      @Field()
+      name = '';
+    }
+    @Schema()
+    class Parent {
+      @Field({ type: 'Child' })
+      child = new Child();
+    }
+    new Child();
+    new Parent();
+
+    const proto = toProto(Parent);
+    expect(proto).toContain('message Child {');
+    expect(proto).toContain('message Parent {');
+    expect(proto.indexOf('message Child {')).toBeLessThan(proto.indexOf('message Parent {'));
   });
 });

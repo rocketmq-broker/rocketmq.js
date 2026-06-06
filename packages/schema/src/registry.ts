@@ -3,24 +3,43 @@
  *
  * Replaces the module-level Map globals from the original schema.ts.
  * Injectable via constructor so tests can use isolated instances.
- *
- * Usage:
- *   const registry = new SchemaRegistry();
- *   registry.register("orders", entry);
- *   const entry = registry.lookup("orders");
  */
 
 import type { FieldMeta, SchemaEntry } from './metadata.js';
+import type { Constructor } from './types.js';
 
 export class SchemaRegistry {
   /** Queue name → schema entry. */
   private byQueue = new Map<string, SchemaEntry>();
 
   /** Class constructor → field metadata (populated by decorators). */
-  private fieldStore = new Map<Function, FieldMeta[]>();
+  private fieldStore = new Map<Constructor, FieldMeta[]>();
 
   /** Class constructor → subject prefix (populated by @Schema("subject")). */
-  private subjectStore = new Map<Function, string>();
+  private subjectStore = new Map<Constructor, string>();
+
+  /** Set of all decorated schema constructors. */
+  private allSchemas = new Set<Constructor>();
+
+  /** Tracks a constructor as a decorated schema. */
+  registerSchema(ctor: Constructor): void {
+    this.allSchemas.add(ctor);
+  }
+
+  /** Returns true if a constructor is a registered schema. */
+  isSchema(ctor: Constructor): boolean {
+    return this.allSchemas.has(ctor);
+  }
+
+  /** Looks up a schema constructor by its class name. */
+  getSchemaByName(name: string): Constructor | undefined {
+    for (const ctor of this.allSchemas) {
+      if (ctor.name === name) {
+        return ctor;
+      }
+    }
+    return undefined;
+  }
 
   /** Binds a queue name to a fully resolved schema entry. */
   register(queueName: string, entry: SchemaEntry): void {
@@ -38,17 +57,17 @@ export class SchemaRegistry {
   }
 
   /** Stores the subject prefix set by @Schema("subject"). */
-  setSubject(ctor: Function, subject: string): void {
+  setSubject(ctor: Constructor, subject: string): void {
     this.subjectStore.set(ctor, subject);
   }
 
   /** Returns the subject prefix for a class, if any. */
-  getSubject(ctor: Function): string | undefined {
+  getSubject(ctor: Constructor): string | undefined {
     return this.subjectStore.get(ctor);
   }
 
   /** Returns the mutable field list for a class, creating it if absent. */
-  getOrCreateFields(ctor: Function): FieldMeta[] {
+  getOrCreateFields(ctor: Constructor): FieldMeta[] {
     let fields = this.fieldStore.get(ctor);
     if (!fields) {
       fields = [];
@@ -58,7 +77,7 @@ export class SchemaRegistry {
   }
 
   /** Returns the field metadata for a class (read-only snapshot). */
-  getFields(ctor: Function): readonly FieldMeta[] {
+  getFields(ctor: Constructor): readonly FieldMeta[] {
     return this.fieldStore.get(ctor) ?? [];
   }
 }

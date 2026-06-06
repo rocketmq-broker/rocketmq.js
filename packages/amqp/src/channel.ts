@@ -20,6 +20,7 @@ import type {
   ConsumeReply,
   EmptyReply,
   PublishOptions,
+  ConsumeHandler,
 } from './types.js';
 
 export class AmqpChannel {
@@ -56,7 +57,7 @@ export class AmqpChannel {
 
   async consume(
     queue: string,
-    handler: (msg: ConsumeMessage | null) => void,
+    handler: ConsumeHandler,
     opts?: ConsumeOptions,
   ): Promise<ConsumeReply> {
     return this.ch.consume(queue, handler, opts);

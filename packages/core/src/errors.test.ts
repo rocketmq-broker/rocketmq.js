@@ -61,44 +61,47 @@ describe('QueueError', () => {
 });
 
 describe('PublishError', () => {
-  it('formats message with queue name', () => {
-    const err = new PublishError('orders');
-    expect(err.message).toBe("Failed to publish to 'orders'");
+  it('formats message with queue name and payload', () => {
+    const err = new PublishError('orders', { id: 1 });
+    expect(err.message).toBe('Failed to publish payload to \'orders\': {"id":1}');
     expect(err.queue).toBe('orders');
     expect(err.name).toBe('PublishError');
+    expect(err.payload).toEqual({ id: 1 });
   });
 
   it('preserves cause', () => {
     const cause = new Error('channel closed');
-    const err = new PublishError('q', cause);
+    const err = new PublishError('q', { id: 1 }, cause);
     expect(err.cause).toBe(cause);
   });
 });
 
 describe('ConsumeError', () => {
   it('extends RocketMQError', () => {
-    const err = new ConsumeError('consume fail');
+    const err = new ConsumeError('consume failed');
     expect(err).toBeInstanceOf(RocketMQError);
     expect(err.name).toBe('ConsumeError');
   });
 
   it('preserves cause', () => {
-    const cause = new Error('NOT_FOUND');
-    const err = new ConsumeError('failed', cause);
+    const cause = new Error('timeout');
+    const err = new ConsumeError('consume failed', cause);
     expect(err.cause).toBe(cause);
   });
 });
 
 describe('SerializationError', () => {
-  it('extends RocketMQError', () => {
-    const err = new SerializationError('bad json');
+  it('extends RocketMQError and includes payload', () => {
+    const err = new SerializationError({ bad: 'data' });
     expect(err).toBeInstanceOf(RocketMQError);
     expect(err.name).toBe('SerializationError');
+    expect(err.message).toBe('Serialization error for payload: {"bad":"data"}');
+    expect(err.payload).toEqual({ bad: 'data' });
   });
 
   it('preserves cause', () => {
-    const cause = new SyntaxError('Unexpected token');
-    const err = new SerializationError('parse failed', cause);
+    const cause = new Error('parse error');
+    const err = new SerializationError('data', cause);
     expect(err.cause).toBe(cause);
   });
 });

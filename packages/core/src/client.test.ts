@@ -10,6 +10,7 @@
 import { Field, Schema, SchemaRegistry } from '@rocketmq/schema';
 import { JsonSerializer } from '@rocketmq/serializer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { connect, RocketMQ } from './client.js';
 import { ConnectionError, ConsumeError, PublishError, QueueError } from './errors.js';
 
@@ -21,6 +22,7 @@ vi.mock('@rocketmq/amqp', async (importOriginal) => {
     AmqpConnection: {
       connect: vi.fn().mockResolvedValue({
         createChannel: vi.fn().mockResolvedValue({
+          raw: { on: vi.fn(), removeListener: vi.fn() },
           assertQueue: vi.fn().mockResolvedValue({ queue: 'q', messageCount: 0, consumerCount: 0 }),
           close: vi.fn().mockResolvedValue(undefined),
         }),
@@ -31,7 +33,10 @@ vi.mock('@rocketmq/amqp', async (importOriginal) => {
 });
 /** Named fake channel mock. */
 class FakeAmqpChannel {
-  raw = this;
+  raw = {
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  } as unknown as import('@rocketmq/amqp').AmqpChannel['raw'];
   assertQueue = vi.fn().mockResolvedValue({ queue: 'q', messageCount: 0, consumerCount: 0 });
   assertExchange = vi.fn().mockResolvedValue({ exchange: 'ex' });
   bindQueue = vi.fn().mockResolvedValue({});
@@ -232,10 +237,15 @@ describe('RocketMQ', () => {
     });
   });
 
-  describe('consume (untyped)', () => {
+  describe('consume (typed)', () => {
+    // Stub schema class for consume tests — schema arg is required.
+    class StubMsg {
+      id = '';
+    }
+
     it('subscribes and returns consumer tag', async () => {
       const handler = vi.fn();
-      const tag = await mq.consume('q', handler);
+      const tag = await mq.consume('q', StubMsg, handler);
       expect(tag).toBe('tag-1');
     });
 
@@ -245,7 +255,7 @@ describe('RocketMQ', () => {
         cb({ content: Buffer.from('{"a":1}'), fields: {}, properties: {} });
         return { consumerTag: 't' };
       });
-      await mq.consume('q', handler);
+      await mq.consume('q', StubMsg, handler);
       expect(handler).toHaveBeenCalledWith({ a: 1 }, expect.anything());
     });
 
@@ -255,7 +265,7 @@ describe('RocketMQ', () => {
         cb(null);
         return { consumerTag: 't' };
       });
-      await mq.consume('q', handler);
+      await mq.consume('q', StubMsg, handler);
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -266,7 +276,7 @@ describe('RocketMQ', () => {
         cb({ content: Buffer.from('not-json'), fields: {}, properties: {} });
         return { consumerTag: 't' };
       });
-      await mq.consume('q', handler);
+      await mq.consume('q', StubMsg, handler);
       expect(handler).not.toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
@@ -274,7 +284,7 @@ describe('RocketMQ', () => {
 
     it('throws ConsumeError when channel.consume rejects', async () => {
       ch.consume.mockRejectedValue(new Error('NOT_FOUND'));
-      await expect(mq.consume('q', vi.fn())).rejects.toThrow(ConsumeError);
+      await expect(mq.consume('q', StubMsg, vi.fn())).rejects.toThrow(ConsumeError);
     });
   });
 
@@ -308,20 +318,157 @@ describe('RocketMQ', () => {
   });
 });
 
+describe('RocketMQ (Zod schemas)', () => {
+  let ch: FakeAmqpChannel;
+  let conn: FakeAmqpConnection;
+  let registry: SchemaRegistry;
+  let mq: RocketMQ;
+
+  beforeEach(() => {
+    ch = new FakeAmqpChannel();
+    conn = new FakeAmqpConnection();
+    registry = new SchemaRegistry();
+    mq = new RocketMQ(conn as never, ch as never, registry, new JsonSerializer());
+  });
+
+  describe('assertQueue with ZodSchemaInput', () => {
+    it('sends proto3 from Zod schema to broker', async () => {
+      const zodInput = {
+        name: 'ZodNotification',
+        schema: z.object({ id: z.string(), content: z.string() }),
+      };
+
+      await mq.assertQueue('zod-q', zodInput);
+
+      expect(ch.assertQueue).toHaveBeenCalledWith(
+        'zod-q',
+        expect.objectContaining({
+          arguments: expect.objectContaining({
+            'x-schema': expect.stringContaining('proto3'),
+            'x-schema-type': 'protobuf',
+            'x-schema-message': 'ZodNotification',
+          }),
+        }),
+      );
+    });
+
+    it('generates correct proto field types from Zod', async () => {
+      const zodInput = {
+        name: 'ZodMixed',
+        schema: z.object({
+          name: z.string(),
+          age: z.number().int(),
+          active: z.boolean(),
+        }),
+      };
+
+      await mq.assertQueue('zod-mixed', zodInput);
+
+      const callArgs = ch.assertQueue.mock.calls[0][1];
+      const proto = callArgs.arguments['x-schema'];
+      expect(proto).toContain('string name = 1;');
+      expect(proto).toContain('int32 age = 2;');
+      expect(proto).toContain('bool active = 3;');
+    });
+
+    it('does not register in decorator registry for Zod schemas', async () => {
+      const zodInput = {
+        name: 'ZodOnly',
+        schema: z.object({ x: z.string() }),
+      };
+
+      await mq.assertQueue('zod-only', zodInput);
+
+      // Zod schemas have no constructor to register
+      expect(registry.lookup('zod-only')).toBeUndefined();
+    });
+
+    it('throws QueueError when channel rejects Zod schema', async () => {
+      const zodInput = {
+        name: 'ZodFail',
+        schema: z.object({ v: z.string() }),
+      };
+
+      ch.assertQueue.mockRejectedValue(new Error('PRECONDITION_FAILED'));
+      await expect(mq.assertQueue('fail-zod', zodInput)).rejects.toThrow(QueueError);
+    });
+  });
+
+  describe('consume with ZodSchemaInput', () => {
+    it('sends consumer schema args from Zod', async () => {
+      const zodInput = {
+        name: 'ZodConsumer',
+        schema: z.object({ id: z.string() }),
+      };
+
+      const handler = vi.fn();
+      await mq.consume('zod-consume', zodInput, handler);
+
+      expect(ch.consume).toHaveBeenCalledWith(
+        'zod-consume',
+        expect.any(Function),
+        expect.objectContaining({
+          arguments: expect.objectContaining({
+            'x-consumer-schema': expect.stringContaining('proto3'),
+            'x-consumer-schema-message': 'ZodConsumer',
+          }),
+        }),
+      );
+    });
+
+    it('subscribes and returns consumer tag with Zod schema', async () => {
+      const zodInput = {
+        name: 'ZodTag',
+        schema: z.object({ id: z.string() }),
+      };
+
+      const handler = vi.fn();
+      const tag = await mq.consume('zod-tag', zodInput, handler);
+      expect(tag).toBe('tag-1');
+    });
+  });
+
+  describe('assertQueue with raw ZodObject', () => {
+    it('derives message name from queue name', async () => {
+      const schema = z.object({ title: z.string() });
+
+      await mq.assertQueue('my-events', schema);
+
+      const callArgs = ch.assertQueue.mock.calls[0][1];
+      expect(callArgs.arguments['x-schema-message']).toBe('MyEvents');
+      expect(callArgs.arguments['x-schema']).toContain('message MyEvents {');
+    });
+  });
+
+  describe('consume with raw ZodObject', () => {
+    it('derives consumer message name from queue name', async () => {
+      const schema = z.object({ id: z.string() });
+      const handler = vi.fn();
+
+      await mq.consume('raw-zod-q', schema, handler);
+
+      expect(ch.consume).toHaveBeenCalledWith(
+        'raw-zod-q',
+        expect.any(Function),
+        expect.objectContaining({
+          arguments: expect.objectContaining({
+            'x-consumer-schema-message': 'RawZodQ',
+          }),
+        }),
+      );
+    });
+  });
+});
+
 describe('connect()', () => {
   it('returns a RocketMQ instance on success', async () => {
     const mq = await connect({ url: 'amqp://localhost' });
     expect(mq).toBeInstanceOf(RocketMQ);
   });
 
-  it('uses default URL when none provided', async () => {
-    const mq = await connect();
-    expect(mq).toBeInstanceOf(RocketMQ);
-  });
-
   it('accepts a custom serializer', async () => {
     const custom = new JsonSerializer();
-    const mq = await connect({ serializer: custom });
+    const mq = await connect({ url: 'amqp://localhost', serializer: custom });
     expect(mq).toBeInstanceOf(RocketMQ);
   });
 

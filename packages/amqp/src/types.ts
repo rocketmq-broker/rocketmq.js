@@ -16,3 +16,5 @@ export type AssertQueueReply = amqp.Replies.AssertQueue;
 export type AssertExchangeReply = amqp.Replies.AssertExchange;
 export type ConsumeReply = amqp.Replies.Consume;
 export type EmptyReply = amqp.Replies.Empty;
+
+export type ConsumeHandler = (msg: ConsumeMessage | null) => void;
