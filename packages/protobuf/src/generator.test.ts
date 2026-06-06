@@ -158,7 +158,7 @@ describe('toProto', () => {
     it('throws if dependent schema has no fields', () => {
       @Schema()
       class NoFieldsDep {}
-      
+
       @Schema()
       class DependentParent {
         @Field({ type: 'NoFieldsDep' })
@@ -176,7 +176,7 @@ describe('toProto', () => {
         @Field()
         id!: string;
       }
-      
+
       @Schema()
       class ReflectParent {
         @Field({ type: 'NestedReflectChild' })

@@ -322,7 +322,7 @@ describe('RocketMQ', () => {
     it('returns empty args when queue not in registry and no schema provided', async () => {
       const handler = vi.fn();
       await mq.consume('unregistered-fallback', undefined as never, handler);
-      
+
       const callArgs = ch.consume.mock.calls[0][2];
       expect(callArgs.arguments['x-consumer-schema-message']).toBeUndefined();
     });
@@ -339,7 +339,7 @@ describe('RocketMQ', () => {
       // Force consume to use the fallback by casting undefined
       const handler = vi.fn();
       await mq.consume('fallback-q', undefined as never, handler);
-      
+
       const callArgs = ch.consume.mock.calls[0][2];
       expect(callArgs.arguments['x-consumer-schema-message']).toBe('FallbackMsg');
     });
@@ -360,13 +360,13 @@ describe('RocketMQ', () => {
       // Explicit schema without fields fails proto resolution
       class EmptyMsg {}
       const handler = vi.fn();
-      
+
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       await mq.consume('err-q', EmptyMsg as never, handler);
-      
+
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('failed to build consumer schema for EmptyMsg:'),
-        expect.any(String)
+        expect.any(String),
       );
       consoleSpy.mockRestore();
 

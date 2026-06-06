@@ -199,7 +199,9 @@ describe('wrapBrokerError', () => {
   });
 
   it('returns a SchemaValidationError on valid broker error', () => {
-    const err = new Error('with message "{"code":"SchemaTypeMismatch","queue":"q","fields":[{"name":"id","expected":"double","got":"string"}]}"');
+    const err = new Error(
+      'with message "{"code":"SchemaTypeMismatch","queue":"q","fields":[{"name":"id","expected":"double","got":"string"}]}"',
+    );
     const result = wrapBrokerError(err);
     expect(result).toBeInstanceOf(SchemaValidationError);
     expect(result!.code).toBe(BrokerErrorCode.SchemaTypeMismatch);

@@ -334,7 +334,9 @@ export class RocketMQ {
         'x-consumer-schema-message': resolved.messageName,
       };
     } catch (err) {
-      const name = isConstructorInput(schema) ? (schema as Constructor).name : (schema as { name: string }).name;
+      const name = isConstructorInput(schema)
+        ? (schema as Constructor).name
+        : (schema as { name: string }).name;
       console.error(
         `[rocketmq] failed to build consumer schema for ${name}:`,
         (err as Error).message,
