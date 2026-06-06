@@ -27,11 +27,7 @@ describe('QueueHandle', () => {
     it('serializes and sends a payload', () => {
       const result = handle.send({ id: '1', qty: 5 });
       expect(result).toBe(true);
-      expect(client.sendToQueue).toHaveBeenCalledWith(
-        'test-queue',
-        { id: '1', qty: 5 },
-        undefined,
-      );
+      expect(client.sendToQueue).toHaveBeenCalledWith('test-queue', { id: '1', qty: 5 }, undefined);
     });
 
     it('passes custom publish options', () => {
@@ -49,23 +45,15 @@ describe('QueueHandle', () => {
       const handler = vi.fn();
       const tag = await handle.consume(handler);
       expect(tag).toBe('tag-1');
-      expect(client.consume).toHaveBeenCalledWith(
-        'test-queue',
-        TestSchema,
-        handler,
-        undefined,
-      );
+      expect(client.consume).toHaveBeenCalledWith('test-queue', TestSchema, handler, undefined);
     });
 
     it('passes consume options through', async () => {
       const handler = vi.fn();
       await handle.consume(handler, { noAck: true });
-      expect(client.consume).toHaveBeenCalledWith(
-        'test-queue',
-        TestSchema,
-        handler,
-        { noAck: true },
-      );
+      expect(client.consume).toHaveBeenCalledWith('test-queue', TestSchema, handler, {
+        noAck: true,
+      });
     });
   });
 });

@@ -50,8 +50,6 @@ export function isZodSchemaInput(value: unknown): value is ZodSchemaInput {
  * Usage:
  *   if (isRawZodObject(input)) { ... }
  */
-export function isRawZodObject(
-  value: unknown,
-): value is z.ZodObject<z.ZodRawShape> {
+export function isRawZodObject(value: unknown): value is z.ZodObject<z.ZodRawShape> {
   return value instanceof z.ZodObject;
 }

@@ -3,7 +3,13 @@ export { Schema, Field } from '@rocketmq/schema';
 export type { ProtoType, FieldMeta, SchemaEntry } from '@rocketmq/schema';
 
 // Re-export Zod schema utilities so users can use either style
-export { zodToProto, zodToFields, isZodSchemaInput, isRawZodObject, type ZodSchemaInput } from '@rocketmq/zod';
+export {
+  zodToProto,
+  zodToFields,
+  isZodSchemaInput,
+  isRawZodObject,
+  type ZodSchemaInput,
+} from '@rocketmq/zod';
 
 // Re-export schema resolver types
 export { type SchemaInput } from './schema-resolver.js';
